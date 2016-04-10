@@ -3,30 +3,44 @@
 int
 main(int argc, char **argv)
 {
-	int		sockfd, n, npend;
-	char	recvline[MAXLINE + 1];
-	socklen_t	len;
-	struct sockaddr_storage	ss;
+	int					sockfd, n;
+	char				recvline[MAXLINE + 1];
+	struct sockaddr_in	servaddr;
 
+	// if (argc != 2)
+	// 	err_quit("usage: a.out <IPaddress>");
 	if (argc != 3)
-		err_quit("usage: a.out <hostname or IPaddress> <service or port#>");
+		err_quit("usage: a.out <IPaddress> <Port>");
 
-	sockfd = Tcp_connect(argv[1], argv[2]);
+	if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	// if ( (sockfd = socket(9999, SOCK_STREAM, 0)) < 0)
+		err_sys("socket error");
 
-	len = sizeof(ss);
-	Getpeername(sockfd, (SA *)&ss, &len);
-	printf("connected to %s\n", Sock_ntop_host((SA *)&ss, len));
+	bzero(&servaddr, sizeof(servaddr));
+	servaddr.sin_family = AF_INET;
+	// servaddr.sin_port   = htons(13);	/* daytime server */
+	servaddr.sin_port   = htons(atoi(argv[2]));	/* daytime server */
+	printf("port : %d\n",atoi(argv[2]) );
+	fflush(stdout);
 
-	for ( ; ; ) {
-		if ( (n = Recv(sockfd, recvline, MAXLINE, MSG_PEEK)) == 0)
-			break;		/* server closed connection */
+	if (inet_pton(AF_INET, argv[1], &servaddr.sin_addr) <= 0)
+		err_quit("inet_pton error for %s", argv[1]);
 
-		Ioctl(sockfd, FIONREAD, &npend);	/* check FIONREAD support */
-		printf("%d bytes from PEEK, %d bytes pending\n", n, npend);
+	if (connect(sockfd, (SA *) &servaddr, sizeof(servaddr)) < 0)
+		err_sys("connect error");
 
-		n = Read(sockfd, recvline, MAXLINE);
+	int times = 0;
+	while ( (n = read(sockfd, recvline, 6)) > 0) {
+	// while ( (n = read(sockfd, recvline, MAXLINE)) > 0) {
 		recvline[n] = 0;	/* null terminate */
-		Fputs(recvline, stdout);
+		if (fputs(recvline, stdout) == EOF)
+			err_sys("fputs error");
+		times += 1;
 	}
+	printf("times gt 0 : %d\n",times);
+	fflush(stdout);
+	if (n < 0)
+		err_sys("read error");
+
 	exit(0);
 }
